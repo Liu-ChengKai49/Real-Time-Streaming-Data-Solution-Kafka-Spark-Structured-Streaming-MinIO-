@@ -39,7 +39,7 @@ services:
     hostname: datanode
     container_name: datanode
     volumes:
-      - datanode-data:/hadoop/dfs/data
+      - datanode-data:/hadoop/dfs/data      
       # - ./core-site.xml:/opt/hadoop-3.2.1/etc/hadoop/core-site.xml:ro
       # - ./hdfs-site.xml:/opt/hadoop-3.2.1/etc/hadoop/hdfs-site.xml:ro
     environment:
@@ -97,6 +97,7 @@ services:
       - ./hadoop-conf/hive-site.xml:/opt/hive/conf/hive-site.xml:ro
       - ./hadoop-conf/lib/mysql-connector-j-8.4.0.jar:/opt/hive/lib/mysql-connector-j-8.4.0.jar:ro
       - ./hadoop-conf:/opt/hadoop/etc/hadoop:ro     # <- mount the whole dir
+      - ./hadoop-conf/core-site.xml:/etc/hadoop/conf/core-site.xml:ro
     environment:
       HIVE_CONF_DIR: /opt/hive/conf
       HADOOP_CONF_DIR: /opt/hadoop/etc/hadoop
