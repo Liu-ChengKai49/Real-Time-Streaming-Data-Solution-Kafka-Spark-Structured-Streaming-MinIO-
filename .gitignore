@@ -1,2 +1,7 @@
-# ignore local secrets
+# local secrets
 .env
+
+# local data / artifacts
+data/minio/
+**/__pycache__/
+*.log
