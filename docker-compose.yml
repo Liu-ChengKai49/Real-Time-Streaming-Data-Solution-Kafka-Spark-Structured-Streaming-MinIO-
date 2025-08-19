@@ -245,6 +245,17 @@ services:
       - "2181:2181"
     networks:
       - big-data-net
+  python-producer:
+    image: python:3.11-slim
+    depends_on:
+      - kafka
+    working_dir: /app
+    volumes:
+      - .:/app
+    # Share the default docker compose network with kafka
+    # so 'kafka:9092' is resolvable.
+    networks:
+      - big-data-net
 
 
 
