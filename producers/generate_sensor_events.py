@@ -27,14 +27,7 @@ def main():
     if args.seed is not None:
         random.seed(args.seed)
 
-    devices = [mk_id("MTR",5) for _ in range(max(1,args.n-devices if hasattr(args,'n-devices') else args.n_devices))] \
-              if hasattr(args,'n-devices') else [mk_id("MTR",5) for _ in range(max(1,args.n_devices))]
-
-    # Backward compatibility for argparse attr with dash
-    if hasattr(args, 'n-devices'):
-        args.n_devices = getattr(args, 'n-devices')
-
-    devices = [mk_id("MTR",5) for _ in range(max(1,args.n_devices))]
+    devices = [mk_id("MTR",5) for _ in range(max(1, args.n_devices))]
 
     producer = KafkaProducer(
         bootstrap_servers=[b.strip() for b in args.brokers.split(",")],
