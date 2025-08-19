@@ -1,6 +1,6 @@
 # docker-compose.yml
 
-version: '3.8'
+# version: '3.8'
 
 services:
   # --------------------------------------------------------------------------
@@ -256,7 +256,25 @@ services:
     # so 'kafka:9092' is resolvable.
     networks:
       - big-data-net
-
+  spark:
+    build:
+      context: ./docker/spark
+    image: local/spark:3.5-python
+    container_name: spark
+    # image: bitnami/spark:3.5
+    user: "0:0"
+    working_dir: /app
+    command: ["bash","-lc","sleep infinity"]
+    environment:
+      - HOME=/tmp/spark-home
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - .:/app
+      - spark_ivy:/tmp/spark-home/.ivy2   # persist Ivy cache to speed up future runs
+      - spark_m2:/tmp/spark-home/.m2
+    networks:
+      - big-data-net
 
 
 # --------------------------------------------------------------------------
@@ -267,6 +285,8 @@ volumes:
   datanode-data:
   mariadb-data:
   mongodb-data:
+  spark_ivy:
+  spark_m2:
 
 # --------------------------------------------------------------------------
 # Docker Network for Inter-Service Communication
