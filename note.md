@@ -41,3 +41,21 @@ docker compose exec -T kafka \
   --topic sensor_alerts --from-beginning --timeout-ms 8000 \
   --property print.key=true --property key.separator=' | '
 
+
+
+docker compose exec spark bash -lc '
+/opt/bitnami/spark/bin/spark-sql \
+  --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+  --conf spark.hadoop.fs.s3a.path.style.access=true \
+  --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
+  --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
+  --conf spark.hadoop.fs.s3a.access.key=$MINIO_ROOT_USER \
+  --conf spark.hadoop.fs.s3a.secret.key=$MINIO_ROOT_PASSWORD <<'"'"'SQL'"'"'
+SELECT
+  window_start, window_end, device_id, n_events,
+  ROUND(avg_temperature_c,2) AS avg_temperature_c, max_vibration_g
+FROM parquet.`s3a://rt-stream/curated/date=2025-08-20/hour=07`
+ORDER BY window_start DESC, device_id
+LIMIT 50;
+SQL
+'

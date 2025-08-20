@@ -2,34 +2,39 @@
 from pyspark.sql import SparkSession, functions as F, types as T
 import os
 
-# ---- Config (env vars with safe defaults) ----
-BROKERS       = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-SRC_TOPIC     = os.getenv("SOURCE_TOPIC", "sensor_events")
-ALERT_TOPIC   = os.getenv("ALERT_TOPIC", "sensor_alerts")
-BUCKET_ROOT   = os.getenv("S3_BUCKET_ROOT", "s3a://rt-stream")
-CURATED_PATH  = os.getenv("CURATED_PATH",  f"{BUCKET_ROOT}/curated")
-CHK_ROOT      = os.getenv("CHECKPOINT_ROOT", f"{BUCKET_ROOT}/_chk")
-OFFSETS_PER_T = os.getenv("MAX_OFFSETS_PER_TRIGGER")  # e.g. "1000" to throttle
+# ── Config (env vars with safe defaults) ────────────────────────────────────────
+BROKERS        = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+SRC_TOPIC      = os.getenv("SOURCE_TOPIC", "sensor_events")
+ALERT_TOPIC    = os.getenv("ALERT_TOPIC", "sensor_alerts")
+BUCKET_ROOT    = os.getenv("S3_BUCKET_ROOT", "s3a://rt-stream")
+CURATED_PATH   = os.getenv("CURATED_PATH",  f"{BUCKET_ROOT}/curated")
+CHK_ROOT       = os.getenv("CHECKPOINT_ROOT", f"{BUCKET_ROOT}/_chk")
+OFFSETS_PER_T  = os.getenv("MAX_OFFSETS_PER_TRIGGER")     # e.g. "1000" to throttle
+START_OFFSETS  = os.getenv("STARTING_OFFSETS", "latest")  # "latest" or "earliest"
 
-# ---- Spark session ----
+# Dev-friendly defaults (override via env for prod)
+WINDOW         = os.getenv("WINDOW", "30 seconds")        # e.g. "1 minute"
+WATERMARK      = os.getenv("WATERMARK", "30 seconds")     # e.g. "2 minutes"
+TRIGGER        = os.getenv("TRIGGER", "10 seconds")       # e.g. "30 seconds"
+DEBUG_SINKS    = os.getenv("DEBUG_SINKS", "1")            # "1" to print to console
+
+# ── Spark session ───────────────────────────────────────────────────────────────
 spark = (
     SparkSession.builder
     .appName("rt-stream:events->parquet+alerts")
-    # tip: set these in spark-submit instead; shown here for completeness
-    # .config("spark.sql.shuffle.partitions", "6")
+    # tip: move connector & S3A configs to spark-submit flags
     .getOrCreate()
 )
 spark.sparkContext.setLogLevel("WARN")
 
-# ---- Source: Kafka ----
+# ── Source: Kafka ───────────────────────────────────────────────────────────────
 src = (
     spark.readStream.format("kafka")
     .option("kafka.bootstrap.servers", BROKERS)
     .option("subscribe", SRC_TOPIC)
-    .option("startingOffsets", "latest")   # change to "earliest" for backfill
+    .option("startingOffsets", START_OFFSETS)
     .option("failOnDataLoss", "false")
 )
-
 if OFFSETS_PER_T:
     src = src.option("maxOffsetsPerTrigger", OFFSETS_PER_T)
 
@@ -38,10 +43,12 @@ raw = src.load().select(
     F.col("value").cast("string").alias("v")
 )
 
-# ---- Parse JSON payload ----
+# ── Parse JSON payload ──────────────────────────────────────────────────────────
+# Include optional event_ts in schema to avoid FIELD_NOT_FOUND when referenced.
 schema = T.StructType([
     T.StructField("device_id",      T.StringType(),  True),
-    T.StructField("ts",             T.StringType(),  True),  # ISO8601 '...Z'
+    T.StructField("ts",             T.StringType(),  True),  # ISO8601 '...Z' or with offset
+    T.StructField("event_ts",       T.StringType(),  True),  # optional alternate timestamp
     T.StructField("temperature_c",  T.DoubleType(),  True),
     T.StructField("vibration_g",    T.DoubleType(),  True),
     T.StructField("status",         T.StringType(),  True),
@@ -50,25 +57,36 @@ schema = T.StructType([
 ])
 
 json = F.from_json(F.col("v"), schema).alias("j")
-events = (raw
-    .select(json)
-    .select(
-        F.coalesce(F.col("j.device_id"), F.lit(None)).alias("device_id"),
-        # robust ISO-8601 parsing; 'X' handles 'Z'/±HH
-        F.to_timestamp(F.col("j.ts"), "yyyy-MM-dd'T'HH:mm:ss.SSSX").alias("event_ts"),
-        F.col("j.temperature_c").alias("temperature_c"),
-        F.col("j.vibration_g").alias("vibration_g"),
-        F.col("j.status").alias("status"),
-        F.col("j.site").alias("site"),
-        F.col("j.line").alias("line"),
-    )
-    # basic sanity filters
-    .where("event_ts IS NOT NULL")
-    .where("temperature_c IS NULL OR (temperature_c > -50 AND temperature_c < 150)")
-    .where("vibration_g IS NULL OR vibration_g >= 0")
+
+# Robust ISO-8601 parse: accept ts with/without millis, or event_ts if present
+event_ts_expr = F.coalesce(
+    F.to_timestamp(F.col("j.ts"),       "yyyy-MM-dd'T'HH:mm:ss.SSSX"),   # with ms
+    F.to_timestamp(F.col("j.ts"),       "yyyy-MM-dd'T'HH:mm:ssX"),       # no ms
+    F.to_timestamp(F.col("j.event_ts"), "yyyy-MM-dd'T'HH:mm:ss[.SSS]X")  # alternate field
+).alias("event_ts")
+
+events = (
+    raw.select(json)
+       .select(
+           F.col("j.device_id").alias("device_id"),
+           event_ts_expr,
+           F.col("j.temperature_c").alias("temperature_c"),
+           F.col("j.vibration_g").alias("vibration_g"),
+           F.col("j.status").alias("status"),
+           F.col("j.site").alias("site"),
+           F.col("j.line").alias("line"),
+       )
+       # Basic sanity filters
+       .where("event_ts IS NOT NULL")
+       .where("temperature_c IS NULL OR (temperature_c > -50 AND temperature_c < 150)")
+       .where("vibration_g IS NULL OR vibration_g >= 0")
 )
 
-# ---- Alerts: HOT or VIB ----
+# ── (Optional) Debug sinks so you SEE rows during development ───────────────────
+if DEBUG_SINKS == "1":
+    events.writeStream.format("console").outputMode("append").option("truncate", False).start()
+
+# ── Alerts: HOT or VIB ─────────────────────────────────────────────────────────
 alerts_df = (
     events
     .filter( (F.col("temperature_c") > 85) | (F.col("vibration_g") > 0.5) )
@@ -90,12 +108,12 @@ alerts_q = (
     .start()
 )
 
-# ---- Aggregations: 1-minute tumbling windows per device_id ----
+# ── Aggregations: tumbling window per device_id ─────────────────────────────────
 agg = (
     events
-    .withWatermark("event_ts", "2 minutes")  # tolerate 2 min late data
+    .withWatermark("event_ts", WATERMARK)                  # tolerate late data
     .groupBy(
-        F.window("event_ts", "1 minute").alias("w"),
+        F.window("event_ts", WINDOW).alias("w"),           # e.g. "30 seconds" or "1 minute"
         F.col("device_id")
     )
     .agg(
@@ -115,13 +133,19 @@ agg = (
     .withColumn("hour", F.date_format("window_start", "HH"))
 )
 
+if DEBUG_SINKS == "1":
+    # 'complete' gives you a full table snapshot per trigger (great for dev)
+    agg.writeStream.format("console").outputMode("complete").option("truncate", False).start()
+
+# ── Curated Parquet sink to MinIO (S3A) ─────────────────────────────────────────
 curated_q = (
     agg.writeStream
     .format("parquet")
-    .option("path", CURATED_PATH)
-    .option("checkpointLocation", f"{CHK_ROOT}/curated")
+    .option("path", CURATED_PATH)                          # e.g. s3a://rt-stream/curated
+    .option("checkpointLocation", f"{CHK_ROOT}/curated")   # e.g. s3a://rt-stream/_chk/curated
     .partitionBy("date","hour")
-    .outputMode("append")
+    .outputMode("append")                                  # required with watermark'd windows
+    .trigger(processingTime=TRIGGER)                       # frequent batches in dev
     .start()
 )
 
