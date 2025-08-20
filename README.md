@@ -133,29 +133,36 @@ docker compose exec spark \
 ## 📁 Repository Structure
 
 ```graphql
-├── README.md                  # project overview & runbook (this file)
-├── docker-compose.yml         # extended to add zookeeper, kafka, minio, spark
-├── .env.example               # MINIO_* and any Kafka/Spark env
-├── note.md                    # scratch notes
-
-├── data/                      # (optional) sample payloads
-
-├── hadoop-conf/               # existing configs (unchanged)
-│   ├── core-site.xml
-│   ├── hdfs-site.xml
-│   └── hive-site.xml
-
-├── notebooks/                 # validation & quick checks
+.
+├── README.md
+├── docker-compose.yml
+├── .env.example
+├── .env                # (untracked; keep it local)
+├── .gitignore
+│
+├── data/
+│   └── minio/          # persists MinIO objects
+│
+├── hadoop-conf/
+│   ├── core-site.xml           # (if you have it)
+│   ├── hdfs-site.xml           # (if you have it)
+│   ├── hive-site.xml
+│   ├── hadoop.env
+│   ├── hive-start.sh
+│   └── lib/
+│       └── mysql-connector-j-8.x.jar
+│
+├── notebooks/
 │   └── stream_checks.ipynb
-
-├── producers/                 # Kafka producer (Python)
+│
+├── producers/
 │   ├── requirements.txt
 │   └── generate_sensor_events.py
-
-├── streaming/                 # Spark Structured Streaming job
+│
+├── streaming/
 │   └── job.py
-
-└── configs/                   # spark defaults (optional)
+│
+└── configs/
     └── spark-defaults.conf
 ```
 
