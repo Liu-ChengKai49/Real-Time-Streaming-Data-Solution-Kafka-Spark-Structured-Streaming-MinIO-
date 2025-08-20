@@ -1,5 +1,6 @@
 docker compose down
-docker compose build spark
+docker compose build
+<!-- docker compose build spark -->
 docker compose up -d
 
 
@@ -14,6 +15,7 @@ docker compose exec spark bash -lc '
     --conf spark.pyspark.python=/usr/bin/python3 \
     --conf spark.pyspark.driver.python=/usr/bin/python3 \
     --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.1,org.apache.hadoop:hadoop-aws:3.3.4,com.amazonaws:aws-java-sdk-bundle:1.12.262 \
+    --conf spark.sql.shuffle.partitions=6 \
     --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
     --conf spark.hadoop.fs.s3a.path.style.access=true \
     --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
@@ -22,6 +24,7 @@ docker compose exec spark bash -lc '
     --conf spark.hadoop.fs.s3a.secret.key=$MINIO_ROOT_PASSWORD \
     /app/streaming/job.py
 '
+
 
 
 
