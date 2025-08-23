@@ -158,6 +158,7 @@ services:
       - ./notebooks:/home/jovyan/work
       # Add this line to mount your local data directory
       - ./data:/home/jovyan/work/data
+      - "/mnt/c/Users/harry/Desktop/工作/DE/Data-Quality-Metadata-Deployment-Practices/dq:/home/jovyan/work/dq_ext"
     environment:
       - JUPYTER_ENABLE_LAB=yes
       - GRANT_SUDO=yes
