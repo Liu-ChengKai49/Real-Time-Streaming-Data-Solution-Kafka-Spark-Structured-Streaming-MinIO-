@@ -149,4 +149,40 @@ curated_q = (
     .start()
 )
 
+# === DQ (README) on UNFILTERED rows ============================
+# Build an unfiltered view for DQ (don't drop bad records here)
+events_unfiltered = (
+    raw.select(json)
+       .select(
+           F.col("j.device_id").alias("device_id"),
+           event_ts_expr.alias("event_ts"),
+           F.col("j.temperature_c").alias("temperature_c"),
+           F.col("j.vibration_g").alias("vibration_g"),
+           F.col("j.status").alias("status"),
+           F.col("j.site").alias("site"),
+           F.col("j.line").alias("line"),
+       )
+)
+
+# README foreachBatch DQ summary + quarantines (exact logic)
+def dq_checks(batch_df, epoch_id):
+    summary = (batch_df.agg(
+        F.count("*").alias("rows"),
+        F.sum(F.when((F.col("temperature_c") < -50) | (F.col("temperature_c") > 150), 1).otherwise(0)).alias("out_of_range_temp"),
+        F.sum(F.when(F.col("event_ts").isNull() | F.col("device_id").isNull(), 1).otherwise(0)).alias("missing_key")
+    ).withColumn("epoch_id", F.lit(epoch_id)))
+    summary.write.mode("append").json(f"{BUCKET_ROOT}/dq/streaming_summary")
+
+    (batch_df.where("temperature_c < -50 OR temperature_c > 150")
+             .write.mode("append").parquet(f"{BUCKET_ROOT}/dq/quarantine/invalid_temp"))
+    (batch_df.where("event_ts IS NULL OR device_id IS NULL")
+             .write.mode("append").parquet(f"{BUCKET_ROOT}/dq/quarantine/missing_key"))
+
+dq_q = (events_unfiltered.writeStream
+        .foreachBatch(dq_checks)
+        .option("checkpointLocation", f"{CHK_ROOT}/dq/summary")
+        .start())
+# === END DQ =====================================================
+
+
 spark.streams.awaitAnyTermination()
