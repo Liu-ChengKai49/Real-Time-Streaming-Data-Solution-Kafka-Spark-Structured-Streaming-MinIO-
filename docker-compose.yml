@@ -148,17 +148,18 @@ services:
   # JupyterLab Service
   # --------------------------------------------------------------------------
   jupyterlab:
-    image: jupyter/scipy-notebook:latest
+    build:
+      context: ./docker/jupyter
+      dockerfile: Dockerfile.jupyter
+    image: my-jupyter-java:3.5.1   # name/tag for the built image
     hostname: jupyterlab
-    container_name: jupyterlab
+    # container_name: jupyterlab   # ← remove to avoid cross-project name clashes
     ports:
       - "8888:8888"
     volumes:
-      # Mount the local notebooks directory
       - ./notebooks:/home/jovyan/work
-      # Add this line to mount your local data directory
       - ./data:/home/jovyan/work/data
-      - "/mnt/c/Users/harry/Desktop/工作/DE/Data-Quality-Metadata-Deployment-Practices/dq:/home/jovyan/work/dq_ext"
+      - /mnt/c/Users/harry/Desktop/工作/DE/Data-Quality-Metadata-Deployment-Practices/dq:/home/jovyan/work/dq_ext
     environment:
       - JUPYTER_ENABLE_LAB=yes
       - GRANT_SUDO=yes
@@ -186,8 +187,9 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
-    mem_limit: 1.5g
+    mem_limit: 2g
     command: start-notebook.sh --NotebookApp.token='' --NotebookApp.allow_origin='*'
+
 
   minio:
     image: minio/minio:latest
@@ -286,6 +288,7 @@ services:
   spark:
     build:
       context: ./docker/spark
+      dockerfile: Dockerfile.spark
     image: local/spark:3.5-python
     container_name: spark
     # image: bitnami/spark:3.5
