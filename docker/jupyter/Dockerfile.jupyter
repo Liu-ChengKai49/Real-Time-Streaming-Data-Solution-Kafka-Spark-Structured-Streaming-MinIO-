@@ -1,10 +1,21 @@
 # syntax=docker/dockerfile:1
-# Jupyter with Java 11 baked in
+
+# Jupyter with Python 3.11
 FROM jupyter/scipy-notebook:python-3.11
+
+# Install Java (Spark needs a JRE)
 USER root
 RUN apt-get update -y \
- && apt-get install -y --no-install-recommends openjdk-11-jre-headless \
+ && apt-get install -y --no-install-recommends openjdk-17-jre-headless \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
-ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
-ENV PATH="$JAVA_HOME/bin:$PATH"
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH="${JAVA_HOME}/bin:${PATH}"
+
+# Install PySpark into the default conda env (as jovyan user)
 USER ${NB_UID}
+RUN pip install --no-cache-dir "pyspark==3.5.1" "py4j==0.10.9.7"
+
+# (optional) make sure Spark uses the same Python
+ENV PYSPARK_PYTHON=/opt/conda/bin/python
+ENV PYSPARK_DRIVER_PYTHON=/opt/conda/bin/python
