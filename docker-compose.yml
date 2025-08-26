@@ -309,25 +309,44 @@ services:
 # --- add under services: ---
   marquez-db:
     image: postgres:14
+    container_name: marquez-db
     environment:
-      - POSTGRES_PASSWORD=marquez
       - POSTGRES_DB=marquez
-    ports: ["5433:5432"]                # avoid clash with local Postgres
+      - POSTGRES_USER=marquez
+      - POSTGRES_PASSWORD=marquez
+    ports: ["5433:5432"]         # host:container; avoid conflicts with local Postgres
     networks:
-      - big-data-net
+      big-data-net:
+        aliases:
+          - postgres    # so 'postgres:5432' resolves inside the compose network
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
   marquez:
     image: marquezproject/marquez:0.50.0
-    environment:
-      - MARQUEZ_PORT=5000
-      # >>> Use explicit JDBC URL + user/pass so it does NOT default to localhost <<<
-      - MARQUEZ_DB_URL=jdbc:postgresql://marquez-db:5432/marquez
-      - MARQUEZ_DB_USER=postgres
-      - MARQUEZ_DB_PASSWORD=marquez
+    container_name: marquez
     depends_on:
-      - marquez-db
-    ports: ["5000:5000"]
+      marquez-db:
+        condition: service_healthy
+    environment:
+      # *** use explicit JDBC so it never tries 'localhost' or 'postgres' ***
+      - MARQUEZ_DB_URL=jdbc:postgresql://marquez-db:5432/marquez
+      - MARQUEZ_DB_USER=marquez
+      - MARQUEZ_DB_PASSWORD=marquez
+      # server port (defaults to 5000 anyway, but keep it explicit)
+      - MARQUEZ_PORT=5000
+    ports:
+      - "5000:5000"   # API
+      - "5001:5001"   # admin (healthcheck/metrics)
     networks: [big-data-net]
+    healthcheck:
+      test: ["CMD","curl","-sf","http://localhost:5000/api/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
 
   marquez-web:
     image: marquezproject/marquez-web:0.50.0   # pin a matching tag
