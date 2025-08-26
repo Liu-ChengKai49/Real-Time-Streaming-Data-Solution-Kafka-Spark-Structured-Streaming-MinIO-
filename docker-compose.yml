@@ -306,6 +306,45 @@ services:
     networks:
       - big-data-net
 
+# --- add under services: ---
+  marquez-db:
+    image: postgres:14
+    environment:
+      - POSTGRES_PASSWORD=marquez
+      - POSTGRES_DB=marquez
+    ports: ["5433:5432"]                # avoid clash with local Postgres
+    networks:
+      - big-data-net
+
+  marquez:
+    image: marquezproject/marquez:0.50.0
+    environment:
+      - MARQUEZ_PORT=5000
+      # >>> Use explicit JDBC URL + user/pass so it does NOT default to localhost <<<
+      - MARQUEZ_DB_URL=jdbc:postgresql://marquez-db:5432/marquez
+      - MARQUEZ_DB_USER=postgres
+      - MARQUEZ_DB_PASSWORD=marquez
+    depends_on:
+      - marquez-db
+    ports: ["5000:5000"]
+    networks: [big-data-net]
+
+  marquez-web:
+    image: marquezproject/marquez-web:0.50.0   # pin a matching tag
+    environment:
+      - WEB_PORT=3000
+      - MARQUEZ_BASE_URL=http://marquez:5000   # keep both styles for safety
+      - MARQUEZ_HOST=marquez
+      - MARQUEZ_PORT=5000
+    depends_on:
+      - marquez
+        # condition: service_healthy
+    ports:
+      - "3000:3000"   # change to 3001:3000 if 3000 is busy
+    networks:
+      - big-data-net
+
+
 
 # --------------------------------------------------------------------------
 # Docker Volumes for Persistent Data
