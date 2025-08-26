@@ -1,7 +1,7 @@
-# local secrets
 .env
+envs/*.env
 
-# local data / artifacts
+
 data/minio/
 **/__pycache__/
 *.log

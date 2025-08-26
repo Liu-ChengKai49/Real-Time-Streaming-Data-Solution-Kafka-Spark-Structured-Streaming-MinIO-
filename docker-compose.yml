@@ -68,11 +68,7 @@ services:
       - "3306:3306"
     volumes:
       - mariadb-data:/var/lib/mysql
-    environment:
-      - MARIADB_ROOT_PASSWORD=your_root_password
-      - MARIADB_DATABASE=hive_metastore
-      - MARIADB_USER=hive
-      - MARIADB_PASSWORD=hive_password
+    env_file: [envs/mariadb.env]
     networks:
       - big-data-net
     healthcheck:
@@ -132,9 +128,7 @@ services:
       - "27017:27017"
     volumes:
       - mongodb-data:/data/db
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=mongouser
-      - MONGO_INITDB_ROOT_PASSWORD=mongopassword
+    env_file: [envs/mongodb.env]
     networks:
       - big-data-net
     healthcheck:
@@ -195,9 +189,7 @@ services:
     image: minio/minio:latest
     container_name: minio
     command: server /data --console-address ":9001"
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    env_file: [envs/minio.env]
     volumes:
       - ./data/minio:/data
     ports:
@@ -217,9 +209,7 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    env_file: [envs/minio.env]
     networks:
       - big-data-net
     restart: "no"
@@ -295,10 +285,7 @@ services:
     user: "0:0"
     working_dir: /app
     command: ["bash","-lc","sleep infinity"]
-    environment:
-      - HOME=/tmp/spark-home
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+    env_file: [envs/spark.env]
     volumes:
       - .:/app
       - spark_ivy:/tmp/spark-home/.ivy2   # persist Ivy cache to speed up future runs
@@ -310,10 +297,7 @@ services:
   marquez-db:
     image: postgres:14
     container_name: marquez-db
-    environment:
-      - POSTGRES_DB=marquez
-      - POSTGRES_USER=marquez
-      - POSTGRES_PASSWORD=marquez
+    env_file: [envs/marquez-db.env]
     ports: ["5433:5432"]         # host:container; avoid conflicts with local Postgres
     networks:
       big-data-net:
@@ -331,13 +315,7 @@ services:
     depends_on:
       marquez-db:
         condition: service_healthy
-    environment:
-      # *** use explicit JDBC so it never tries 'localhost' or 'postgres' ***
-      - MARQUEZ_DB_URL=jdbc:postgresql://marquez-db:5432/marquez
-      - MARQUEZ_DB_USER=marquez
-      - MARQUEZ_DB_PASSWORD=marquez
-      # server port (defaults to 5000 anyway, but keep it explicit)
-      - MARQUEZ_PORT=5000
+    env_file: [envs/marquez.env]
     ports:
       - "5000:5000"   # API
       - "5001:5001"   # admin (healthcheck/metrics)
