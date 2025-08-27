@@ -1,6 +1,7 @@
 /.env
 envs/*.env
 
+minio-certs/
 
 data/minio/
 **/__pycache__/

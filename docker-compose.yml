@@ -188,10 +188,12 @@ services:
   minio:
     image: minio/minio:latest
     container_name: minio
-    command: server /data --console-address ":9001"
+    command: server --certs-dir /root/.minio/certs /data --console-address ":9001"
     env_file: [.env]
     volumes:
       - ./data/minio:/data
+      - ./minio-certs:/root/.minio/certs:ro
+      - ./minio-certs:/home/minio/.minio/certs:ro
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -199,7 +201,7 @@ services:
       - big-data-net
     healthcheck:
       # MinIO exposes readiness at /minio/health/ready
-      test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/ready"]
+      test: ["CMD", "curl", "-fsSk", "https://127.0.0.1:9000/minio/health/ready"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -215,7 +217,7 @@ services:
     restart: "no"
     entrypoint: >
       /bin/sh -lc "
-        mc alias set local http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD &&
+        mc alias set local https://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD &&
         mc mb -p local/rt-stream || true &&
         mc ls local
       "
@@ -290,6 +292,7 @@ services:
       - .:/app
       - spark_ivy:/tmp/spark-home/.ivy2   # persist Ivy cache to speed up future runs
       - spark_m2:/tmp/spark-home/.m2
+      - ./truststores:/opt/trust:ro
     networks:
       - big-data-net
 

@@ -1,6 +1,5 @@
 docker compose down
 docker compose build
-<!-- docker compose build spark -->
 docker compose up -d
 
 # inside the kafka container
@@ -90,12 +89,13 @@ docker compose exec spark bash -lc '
     --conf spark.openlineage.namespace=dev \
     --conf spark.app.name=stream_sensor_kpi \
     --conf spark.sql.shuffle.partitions=6 \
-    --conf spark.hadoop.fs.s3a.endpoint=http://minio:9000 \
+    --conf spark.hadoop.fs.s3a.endpoint=https://minio:9000 \
     --conf spark.hadoop.fs.s3a.path.style.access=true \
     --conf spark.hadoop.fs.s3a.impl=org.apache.hadoop.fs.s3a.S3AFileSystem \
-    --conf spark.hadoop.fs.s3a.connection.ssl.enabled=false \
+    --conf spark.hadoop.fs.s3a.connection.ssl.enabled=true \
     --conf spark.hadoop.fs.s3a.access.key=$MINIO_ROOT_USER \
     --conf spark.hadoop.fs.s3a.secret.key=$MINIO_ROOT_PASSWORD \
     /app/streaming/job.py
 '
+
 
