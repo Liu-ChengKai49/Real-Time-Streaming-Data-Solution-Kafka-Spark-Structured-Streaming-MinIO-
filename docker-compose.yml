@@ -68,7 +68,7 @@ services:
       - "3306:3306"
     volumes:
       - mariadb-data:/var/lib/mysql
-    env_file: [envs/mariadb.env]
+    env_file: [.env]
     networks:
       - big-data-net
     healthcheck:
@@ -128,7 +128,7 @@ services:
       - "27017:27017"
     volumes:
       - mongodb-data:/data/db
-    env_file: [envs/mongodb.env]
+    env_file: [.env]
     networks:
       - big-data-net
     healthcheck:
@@ -189,7 +189,7 @@ services:
     image: minio/minio:latest
     container_name: minio
     command: server /data --console-address ":9001"
-    env_file: [envs/minio.env]
+    env_file: [.env]
     volumes:
       - ./data/minio:/data
     ports:
@@ -209,7 +209,7 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-    env_file: [envs/minio.env]
+    env_file: [.env]
     networks:
       - big-data-net
     restart: "no"
@@ -285,7 +285,7 @@ services:
     user: "0:0"
     working_dir: /app
     command: ["bash","-lc","sleep infinity"]
-    env_file: [envs/spark.env]
+    env_file: [.env]
     volumes:
       - .:/app
       - spark_ivy:/tmp/spark-home/.ivy2   # persist Ivy cache to speed up future runs
@@ -297,7 +297,7 @@ services:
   marquez-db:
     image: postgres:14
     container_name: marquez-db
-    env_file: [envs/marquez-db.env]
+    env_file: [.env]
     ports: ["5433:5432"]         # host:container; avoid conflicts with local Postgres
     networks:
       big-data-net:
@@ -315,7 +315,7 @@ services:
     depends_on:
       marquez-db:
         condition: service_healthy
-    env_file: [envs/marquez.env]
+    env_file: [.env]
     ports:
       - "5000:5000"   # API
       - "5001:5001"   # admin (healthcheck/metrics)
