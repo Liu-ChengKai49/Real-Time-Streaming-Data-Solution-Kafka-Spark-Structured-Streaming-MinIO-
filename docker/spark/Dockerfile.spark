@@ -4,4 +4,11 @@ USER root
 RUN install_packages python3 python3-venv python3-pip || \
     (apt-get update && apt-get install -y python3 python3-venv python3-pip && rm -rf /var/lib/apt/lists/*)
 RUN ln -sf /usr/bin/python3 /usr/local/bin/python3
+# Copy the CA into the image
+COPY certs/minio-ca.crt /usr/local/share/ca-certificates/minio-ca.crt
+
+# Import the CA into the JVM default truststore
+RUN $JAVA_HOME/bin/keytool -importcert -noprompt -storepass changeit -cacerts \
+    -alias minio -file /usr/local/share/ca-certificates/minio-ca.crt
+    
 USER 1001

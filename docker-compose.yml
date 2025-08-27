@@ -217,9 +217,12 @@ services:
     restart: "no"
     entrypoint: >
       /bin/sh -lc "
-        mc alias set local https://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD &&
-        mc mb -p local/rt-stream || true &&
-        mc ls local
+        set -e
+        mc alias set local https://minio:9000 \"$MINIO_ROOT_USER\" \"$MINIO_ROOT_PASSWORD\" --api s3v4 --insecure &&
+        mc --insecure mb -p local/rt-stream || true &&
+        mc --insecure encrypt set sse-s3 local/rt-stream &&
+        mc --insecure encrypt info local/rt-stream &&
+        mc --insecure ls local
       "
 
   kafka:
@@ -293,6 +296,7 @@ services:
       - spark_ivy:/tmp/spark-home/.ivy2   # persist Ivy cache to speed up future runs
       - spark_m2:/tmp/spark-home/.m2
       - ./truststores:/opt/trust:ro
+      - ./certs:/certs:ro           # <— add this line
     networks:
       - big-data-net
 
